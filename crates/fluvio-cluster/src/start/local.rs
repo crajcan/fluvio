@@ -15,7 +15,7 @@ use fluvio_controlplane_metadata::spu::{SpuSpec};
 use fluvio_future::timer::sleep;
 use fluvio_command::CommandExt;
 use k8_types::{InputK8Obj, InputObjectMeta};
-use k8_client::SharedK8Client;
+use k8_client::{SharedK8Client, ClientError::ApiResponse};
 
 use crate::render::{ProgressRenderedText, ProgressRenderer};
 use crate::{ClusterChecker, LocalInstallError, StartStatus, UserChartLocation};
@@ -541,7 +541,21 @@ impl LocalInstaller {
         );
 
         debug!(input=?input,"creating spu");
-        client.create_item(input).await?;
+        match client.create_item(input).await {
+            Ok(_) => {}
+            Err(err) => {
+                if let ApiResponse(ref metatstatus) = err {
+                    if metatstatus.reason == Some("AlreadyExists".to_string()) {
+                        debug!("spu item already exists, restarting spu");
+                    } else {
+                        return Err(err.into());
+                    }
+                } else {
+                    return Err(err.into());
+                }
+            }
+        }
+
         debug!("sleeping 1 sec");
         // sleep 1 seconds for sc to connect
         sleep(Duration::from_millis(1000)).await;
