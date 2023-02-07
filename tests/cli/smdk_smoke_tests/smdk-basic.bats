@@ -22,6 +22,18 @@ setup_file() {
 
     TESTING_GROUP_NAME_FLAG="--project-group=smdk-smoke-test-group"
     export TESTING_GROUP_NAME_FLAG
+
+    # Create a workspace to facilitate dependency sharing between test cases SMs
+    cd $TEST_DIR
+    echo '[workspace]'            > Cargo.toml
+    echo                         >> Cargo.toml
+    echo 'members = ['           >> Cargo.toml
+    echo ']'                     >> Cargo.toml
+    echo                         >> Cargo.toml
+    echo '[profile.release-lto]' >> Cargo.toml
+    echo 'inherits = "release"'  >> Cargo.toml
+    echo 'lto = true'            >> Cargo.toml
+    echo 'strip = "symbols"'     >> Cargo.toml
 }
 
 ### Using crates.io dependency for `fluvio-smartmodule`
@@ -34,8 +46,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -71,8 +86,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -109,8 +127,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -144,9 +165,13 @@ setup_file() {
     LABEL=default
     SMDK_SM_TYPE=filter-map
     PARAMS_FLAG=--no-params
-    SM_CRATE_PATH_FLAG="--sm-crate-path $(pwd)/crates/fluvio-smartmodule"
+    SM_CRATE_PATH_FLAG=
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
+
+    # Add SM to workspace
+    cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
 
     # Generate
     cd $TEST_DIR
@@ -186,8 +211,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -226,8 +254,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -263,8 +294,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -295,8 +329,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -327,8 +364,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -359,8 +399,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -393,8 +436,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -430,8 +476,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -468,8 +517,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -507,8 +559,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -545,8 +600,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -585,8 +643,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -622,8 +683,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -654,8 +718,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -686,8 +753,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
@@ -718,8 +788,11 @@ setup_file() {
     SM_PACKAGE_NAME=$LABEL-$SMDK_SM_TYPE-$PROJECT_NAME_PREFIX
     SMDK_SM_PUBLIC=false
 
-    # Generate
+    # Add SM to workspace
     cd $TEST_DIR
+    sed -i "" -e $'/members/a\\\n    "'$SM_PACKAGE_NAME'",' Cargo.toml
+
+    # Generate
     run $SMDK_BIN generate \
         $PARAMS_FLAG \
         $SMDK_TEMPLATE_PATH_FLAG \
