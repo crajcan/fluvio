@@ -112,6 +112,15 @@ mod cmd {
         #[clap(long, value_parser=parse_isolation)]
         pub isolation: Option<Isolation>,
 
+        /// Name of the smartmodule
+        #[clap(
+            long,
+            group("smartmodule_group"),
+            group("aggregate_group"),
+            alias = "sm"
+        )]
+        pub smartmodule: Option<String>,
+
         /*
         #[cfg(feature = "stats")]
         /// Experimental: Collect basic producer session statistics and print in stats bar
