@@ -4,8 +4,9 @@ mod stats;
 pub use cmd::ProduceOpt;
 
 mod cmd {
+    use std::path::Path;
     use std::sync::Arc;
-    use std::io::{BufReader, BufRead};
+    use std::io::{BufReader, BufRead, Read};
     use std::collections::BTreeMap;
     use std::fmt::Debug;
     use std::time::Duration;
@@ -19,13 +20,15 @@ mod cmd {
     use futures::future::join_all;
     use clap::Parser;
     use tracing::{error, warn, debug};
+    use flate2;
+    use flate2::bufread::GzEncoder;
     use humantime::parse_duration;
     use anyhow::Result;
 
     use fluvio::{
         Compression, Fluvio, FluvioError, TopicProducer, TopicProducerConfigBuilder, RecordKey,
-        ProduceOutput, DeliverySemantic, SmartModuleChainBuilder, SmartModuleConfig,
-        SmartModuleInvocation, SmartModuleInitialData,
+        ProduceOutput, DeliverySemantic, SmartModuleConfig, SmartModuleInvocation,
+        SmartModuleInitialData,
     };
 
     use fluvio_extension_common::Terminal;
@@ -143,6 +146,15 @@ mod cmd {
         )]
         pub smartmodule: Option<String>,
 
+        /// Path to the smart module
+        #[clap(
+            long,
+            group("smartmodule_group"),
+            group("aggregate_group"),
+            alias = "sm_path"
+        )]
+        pub smartmodule_path: Option<PathBuf>,
+
         /// (Optional) Path to a file to use as an initial accumulator value with --aggregate
         #[clap(long, requires = "aggregate_group", alias = "a-init")]
         pub aggregate_initial: Option<String>,
@@ -206,6 +218,25 @@ mod cmd {
             kind: SmartModuleKind::Generic(ctx),
             params: params.into(),
         }
+    }
+
+    /// create smartmodule from wasm file
+    fn create_smartmodule_from_path(
+        path: &Path,
+        ctx: SmartModuleContextData,
+        params: BTreeMap<String, String>,
+    ) -> Result<SmartModuleInvocation> {
+        let raw_buffer = std::fs::read(path)?;
+        debug!(len = raw_buffer.len(), "read wasm bytes");
+        let mut encoder = GzEncoder::new(raw_buffer.as_slice(), flate2::Compression::default());
+        let mut buffer = Vec::with_capacity(raw_buffer.len());
+        encoder.read_to_end(&mut buffer)?;
+
+        Ok(SmartModuleInvocation {
+            wasm: SmartModuleInvocationWasm::AdHoc(buffer),
+            kind: SmartModuleKind::Generic(ctx),
+            params: params.into(),
+        })
     }
 
     #[async_trait]
@@ -285,6 +316,12 @@ mod cmd {
                     self.smart_module_ctx(),
                     initial_param,
                 )]
+            } else if let Some(path) = &self.smartmodule_path {
+                vec![create_smartmodule_from_path(
+                    path,
+                    self.smart_module_ctx(),
+                    initial_param,
+                )?]
             } else {
                 Vec::new()
             };
