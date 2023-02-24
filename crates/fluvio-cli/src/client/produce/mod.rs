@@ -4,9 +4,9 @@ mod stats;
 pub use cmd::ProduceOpt;
 
 mod cmd {
-
     use std::sync::Arc;
     use std::io::{BufReader, BufRead};
+    use std::collections::BTreeMap;
     use std::fmt::Debug;
     use std::time::Duration;
     #[cfg(feature = "producer-file-io")]
@@ -18,16 +18,22 @@ mod cmd {
     #[cfg(feature = "producer-file-io")]
     use futures::future::join_all;
     use clap::Parser;
-    use tracing::{error, warn};
+    use tracing::{error, warn, debug};
     use humantime::parse_duration;
     use anyhow::Result;
 
     use fluvio::{
         Compression, Fluvio, FluvioError, TopicProducer, TopicProducerConfigBuilder, RecordKey,
-        ProduceOutput, DeliverySemantic,
+        ProduceOutput, DeliverySemantic, SmartModuleChainBuilder, SmartModuleConfig,
+        SmartModuleInvocation, SmartModuleInitialData,
     };
+
     use fluvio_extension_common::Terminal;
     use fluvio_spu_schema::Isolation;
+    use fluvio_spu_schema::server::smartmodule::{
+        SmartModuleContextData, SmartModuleKind,
+        /*SmartModuleInvocation,*/ SmartModuleInvocationWasm,
+    };
     use fluvio_types::print_cli_ok;
 
     #[cfg(feature = "producer-file-io")]
@@ -36,11 +42,13 @@ mod cmd {
     use fluvio_protocol::record::RecordData;
     #[cfg(feature = "producer-file-io")]
     use fluvio_protocol::bytes::Bytes;
+    use fluvio_protocol::link::ErrorCode;
 
     use crate::client::cmd::ClientCmd;
     use crate::common::FluvioExtensionMetadata;
     use crate::monitoring::init_monitoring;
     use crate::util::parse_isolation;
+    use crate::{CliError};
 
     #[cfg(feature = "stats")]
     use super::stats::*;
@@ -112,6 +120,20 @@ mod cmd {
         #[clap(long, value_parser=parse_isolation)]
         pub isolation: Option<Isolation>,
 
+        /// (Optional) Extra input parameters passed to the smartmodule module.
+        /// They should be passed using key=value format
+        /// Eg. fluvio consume topic-name --filter filter.wasm -e foo=bar -e key=value -e one=1
+        #[clap(
+            short = 'e',
+            requires = "smartmodule_group",
+            long="params",
+            value_parser=parse_key_val,
+            // value_parser,
+            // action,
+            number_of_values = 1
+        )]
+        pub params: Option<Vec<(String, String)>>,
+
         /// Name of the smartmodule
         #[clap(
             long,
@@ -120,6 +142,10 @@ mod cmd {
             alias = "sm"
         )]
         pub smartmodule: Option<String>,
+
+        /// (Optional) Path to a file to use as an initial accumulator value with --aggregate
+        #[clap(long, requires = "aggregate_group", alias = "a-init")]
+        pub aggregate_initial: Option<String>,
 
         /*
         #[cfg(feature = "stats")]
@@ -154,11 +180,31 @@ mod cmd {
         pub delivery_semantic: DeliverySemantic,
     }
 
+    fn parse_key_val(s: &str) -> Result<(String, String)> {
+        let pos = s.find('=').ok_or_else(|| {
+            CliError::InvalidArg(format!("invalid KEY=value: no `=` found in `{s}`"))
+        })?;
+        Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
+    }
+
     fn validate_key_separator(separator: &str) -> std::result::Result<String, String> {
         if separator.is_empty() {
             Err("must be non-empty. If using '=', type it as '--key-separator \"=\"'".to_string())
         } else {
             Ok(separator.to_owned())
+        }
+    }
+
+    /// create smartmodule from predefined name
+    pub fn create_smartmodule(
+        name: &str,
+        ctx: SmartModuleContextData,
+        params: BTreeMap<String, String>,
+    ) -> SmartModuleInvocation {
+        SmartModuleInvocation {
+            wasm: SmartModuleInvocationWasm::Predefined(name.to_string()),
+            kind: SmartModuleKind::Generic(ctx),
+            params: params.into(),
         }
     }
 
@@ -224,11 +270,70 @@ mod cmd {
                 .build()
                 .map_err(FluvioError::from)?;
 
-            let producer = Arc::new(
-                fluvio
-                    .topic_producer_with_config(&self.topic, config)
-                    .await?,
-            );
+            let mut producer = fluvio
+                .topic_producer_with_config(&self.topic, config)
+                .await?;
+
+            let initial_param = match &self.params {
+                None => BTreeMap::default(),
+                Some(params) => params.clone().into_iter().collect(),
+            };
+
+            let smart_module_invocations = if let Some(smart_module_name) = &self.smartmodule {
+                vec![create_smartmodule(
+                    smart_module_name,
+                    self.smart_module_ctx(),
+                    initial_param,
+                )]
+            } else {
+                Vec::new()
+            };
+
+            let mut sm_chain_builder = fluvio::SmartModuleChainBuilder::default();
+
+            for invocation in smart_module_invocations {
+                println!("In cli produce command, invocation: {:#?}", invocation);
+                let raw =
+                    invocation
+                        .wasm
+                        .into_raw()
+                        .map_err(|err| ErrorCode::SmartModuleInvalid {
+                            error: err.to_string(),
+                            name: None,
+                        })?;
+
+                debug!(len = raw.len(), "SmartModule with bytes");
+
+                let initial_data = match invocation.kind {
+                    SmartModuleKind::Aggregate { ref accumulator } => {
+                        SmartModuleInitialData::with_aggregate(accumulator.clone())
+                    }
+                    SmartModuleKind::Generic(SmartModuleContextData::Aggregate {
+                        ref accumulator,
+                    }) => SmartModuleInitialData::with_aggregate(accumulator.clone()),
+                    _ => SmartModuleInitialData::default(),
+                };
+
+                debug!("param: {:#?}", invocation.params);
+                // let version = // get version from consumer cli request api_version header
+
+                sm_chain_builder.add_smart_module(
+                    SmartModuleConfig::builder()
+                        .params(invocation.params)
+                        .initial_data(initial_data)
+                        // .version()
+                        .build()
+                        .map_err(|err| ErrorCode::SmartModuleInvalid {
+                            error: err.to_string(),
+                            name: None,
+                        })?,
+                    raw,
+                );
+            }
+
+            producer = producer.with_chain(sm_chain_builder)?;
+
+            let producer = Arc::new(producer);
 
             #[cfg(feature = "stats")]
             let maybe_stats_bar = if io::stdout().is_tty() {
@@ -330,6 +435,15 @@ mod cmd {
     }
 
     impl ProduceOpt {
+        pub fn smart_module_ctx(&self) -> SmartModuleContextData {
+            if let Some(agg_initial) = &self.aggregate_initial {
+                SmartModuleContextData::Aggregate {
+                    accumulator: agg_initial.clone().into_bytes(),
+                }
+            } else {
+                SmartModuleContextData::None
+            }
+        }
         async fn produce_lines(
             &self,
             producer: Arc<TopicProducer>,
