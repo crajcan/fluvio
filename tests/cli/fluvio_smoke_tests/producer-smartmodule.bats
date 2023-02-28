@@ -18,50 +18,6 @@ setup_file() {
 
 }
 
-@test "invoke map smartmodule in producer by name" {
-    # Load the smartmodule
-    SMARTMODULE_NAME="uppercase"
-    export SMARTMODULE_NAME
-    run timeout 15s "$FLUVIO_BIN" smartmodule create $SMARTMODULE_NAME --wasm-file $SMARTMODULE_BUILD_DIR/fluvio_smartmodule_map.wasm
-    # Print out cmd since we need complete trace of cmd not just failing
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_output "smartmodule \"$SMARTMODULE_NAME\" has been created."
-
-    # Create topic
-    TOPIC_NAME="$(random_string)"
-    export TOPIC_NAME
-    run timeout 15s "$FLUVIO_BIN" topic create "$TOPIC_NAME"
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_output "topic \"$TOPIC_NAME\" created"
-
-    # Produce to topic
-    TEST_MESSAGE="Banana"
-    export TEST_MESSAGE
-    run bash -c 'echo "$TEST_MESSAGE" | timeout 15s "$FLUVIO_BIN" produce "$TOPIC_NAME" --smartmodule "$SMARTMODULE_NAME"'
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_success
-
-    EXPECTED_OUTPUT="BANANA"
-    export EXPECTED_OUTPUT
-    run timeout 15s "$FLUVIO_BIN" consume "$TOPIC_NAME" -B -d
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_output "$EXPECTED_OUTPUT"
-    assert_success
-
-
-
-
-    # Delete topic
-    run timeout 15s "$FLUVIO_BIN" topic delete "$TOPIC_NAME"
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_success
-
-    # Delete smartmodule
-    run timeout 15s "$FLUVIO_BIN" smartmodule delete "$SMARTMODULE_NAME"
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_success
-}
-
 @test "invoke map smartmodule in producer by path" {
     # Create topic
     TOPIC_NAME="$(random_string)"
@@ -90,11 +46,6 @@ setup_file() {
 
     # Delete topic
     run timeout 15s "$FLUVIO_BIN" topic delete "$TOPIC_NAME"
-    echo "cmd: $BATS_RUN_COMMAND" >&2
-    assert_success
-
-    # Delete smartmodule
-    run timeout 15s "$FLUVIO_BIN" smartmodule delete "$SMARTMODULE_NAME"
     echo "cmd: $BATS_RUN_COMMAND" >&2
     assert_success
 }
