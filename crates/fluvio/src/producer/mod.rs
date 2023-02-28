@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::{instrument, debug};
+use tracing::instrument;
 use async_lock::RwLock;
 
 use fluvio_protocol::record::ReplicaKey;
@@ -10,7 +10,10 @@ use fluvio_sc_schema::topic::CompressionAlgorithm;
 use fluvio_types::PartitionId;
 use fluvio_types::event::StickyEvent;
 
+#[cfg(feature = "smartengine")]
 use fluvio_spu_schema::server::smartmodule::{SmartModuleKind};
+#[cfg(feature = "smartengine")]
+use tracing::debug;
 
 mod accumulator;
 mod config;
@@ -407,22 +410,35 @@ impl TopicProducer {
                 }
         }
 
-        let mut producer = Self {
-            inner: Arc::new(InnerTopicProducer {
-                config,
-                topic,
-                spu_pool,
-                producer_pool,
-                record_accumulator,
-            }),
-            #[cfg(feature = "smartengine")]
-            sm_chain: Default::default(),
-            metrics,
-        };
-
         cfg_if::cfg_if! {
                 if #[cfg(feature = "smartengine")] {
+                    let mut producer = Self {
+                        inner: Arc::new(InnerTopicProducer {
+                            config,
+                            topic,
+                            spu_pool,
+                            producer_pool,
+                            record_accumulator,
+                        }),
+                        #[cfg(feature = "smartengine")]
+                        sm_chain: Default::default(),
+                        metrics,
+                    };
+
                     producer = producer.with_chain(sm_chain_builder)?;
+                } else {
+                    let producer = Self {
+                        inner: Arc::new(InnerTopicProducer {
+                            config,
+                            topic,
+                            spu_pool,
+                            producer_pool,
+                            record_accumulator,
+                        }),
+                        #[cfg(feature = "smartengine")]
+                        sm_chain: Default::default(),
+                        metrics,
+                    };
                 }
         }
 

@@ -6,6 +6,8 @@ use derive_builder::Builder;
 
 use fluvio_future::retry::{ExponentialBackoff, FibonacciBackoff, FixedDelay};
 use fluvio_spu_schema::Isolation;
+
+#[cfg(feature = "smartengine")]
 use fluvio_spu_schema::server::smartmodule::SmartModuleInvocation;
 use fluvio_compression::Compression;
 use serde::{Serialize, Deserialize};
@@ -108,6 +110,7 @@ pub struct TopicProducerConfig {
     #[builder(default = "default_delivery()")]
     pub(crate) delivery_semantic: DeliverySemantic,
 
+    #[cfg(feature = "smartengine")]
     #[builder(default)]
     pub(crate) smartmodules: Vec<SmartModuleInvocation>,
 }
@@ -127,6 +130,7 @@ impl Default for TopicProducerConfig {
             stats_collect: default_stats_collect(),
             delivery_semantic: default_delivery(),
 
+            #[cfg(feature = "smartengine")]
             smartmodules: vec![],
         }
     }
