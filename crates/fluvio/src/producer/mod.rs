@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::instrument;
+use tracing::{instrument, debug};
 use async_lock::RwLock;
 
 use fluvio_protocol::record::ReplicaKey;
@@ -9,6 +9,8 @@ use fluvio_compression::Compression;
 use fluvio_sc_schema::topic::CompressionAlgorithm;
 use fluvio_types::PartitionId;
 use fluvio_types::event::StickyEvent;
+
+use fluvio_spu_schema::server::smartmodule::{SmartModuleKind};
 
 mod accumulator;
 mod config;
@@ -26,6 +28,7 @@ use crate::FluvioError;
 use crate::metrics::ClientMetrics;
 use crate::spu::SpuPool;
 use crate::producer::accumulator::{RecordAccumulator, PushRecord};
+
 pub use crate::producer::partitioning::{Partitioner, PartitionerConfig};
 #[cfg(feature = "stats")]
 use crate::stats::{ClientStats, ClientStatsDataCollect, metrics::ClientStatsDataFrame};
@@ -367,7 +370,44 @@ impl TopicProducer {
             metrics.clone(),
         );
 
-        Ok(Self {
+        cfg_if::cfg_if! {
+                if #[cfg(feature = "smartengine")] {
+                    // stick the sm chain building here for now
+                    let mut sm_chain_builder = SmartModuleChainBuilder::default();
+
+                    for invocation in &config.clone().smartmodules {
+                        println!("In cli produce command, invocation: {:#?}", invocation);
+                        let raw = invocation
+                            .wasm.clone()
+                            .into_raw()?;
+
+                        debug!(len = raw.len(), "SmartModule with bytes");
+
+                        let initial_data = match invocation.kind {
+                            SmartModuleKind::Aggregate { ref accumulator } => {
+                                SmartModuleInitialData::with_aggregate(accumulator.clone())
+                            }
+                            SmartModuleKind::Generic(SmartModuleContextData::Aggregate { ref accumulator }) => {
+                                SmartModuleInitialData::with_aggregate(accumulator.clone())
+                            }
+                            _ => SmartModuleInitialData::default(),
+                        };
+
+                        debug!("param: {:#?}", invocation.params);
+                        // let version = // get version from consumer cli request api_version header
+
+                        let smart_module_config_builder = SmartModuleConfig::builder()
+                                .params(invocation.params.clone())
+                                .initial_data(initial_data)
+                                // .version()
+                                .build()?;
+
+                        sm_chain_builder.add_smart_module(smart_module_config_builder, raw);
+                    }
+                }
+        }
+
+        let mut producer = Self {
             inner: Arc::new(InnerTopicProducer {
                 config,
                 topic,
@@ -378,7 +418,15 @@ impl TopicProducer {
             #[cfg(feature = "smartengine")]
             sm_chain: Default::default(),
             metrics,
-        })
+        };
+
+        cfg_if::cfg_if! {
+                if #[cfg(feature = "smartengine")] {
+                    producer = producer.with_chain(sm_chain_builder)?;
+                }
+        }
+
+        Ok(producer)
     }
 
     /// Send all the queued records in the producer batches.

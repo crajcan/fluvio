@@ -27,8 +27,7 @@ mod cmd {
 
     use fluvio::{
         Compression, Fluvio, FluvioError, TopicProducer, TopicProducerConfigBuilder, RecordKey,
-        ProduceOutput, DeliverySemantic, SmartModuleConfig, SmartModuleInvocation,
-        SmartModuleInitialData,
+        ProduceOutput, DeliverySemantic, SmartModuleInvocation,
     };
 
     use fluvio_extension_common::Terminal;
@@ -45,7 +44,6 @@ mod cmd {
     use fluvio_protocol::record::RecordData;
     #[cfg(feature = "producer-file-io")]
     use fluvio_protocol::bytes::Bytes;
-    use fluvio_protocol::link::ErrorCode;
 
     use crate::client::cmd::ClientCmd;
     use crate::common::FluvioExtensionMetadata;
@@ -296,15 +294,8 @@ mod cmd {
                 warn!("Isolation is ignored for AtMostOnce delivery semantic");
             }
 
-            let config = config_builder
-                .delivery_semantic(self.delivery_semantic)
-                .build()
-                .map_err(FluvioError::from)?;
-
-            let mut producer = fluvio
-                .topic_producer_with_config(&self.topic, config)
-                .await?;
-
+            // TODO: Everthing through the next comment should be passed into config_builder.smart_modules()
+            // Also move this into a method here called #collect_smartmodules or something.
             let initial_param = match &self.params {
                 None => BTreeMap::default(),
                 Some(params) => params.clone().into_iter().collect(),
@@ -326,49 +317,16 @@ mod cmd {
                 Vec::new()
             };
 
-            let mut sm_chain_builder = fluvio::SmartModuleChainBuilder::default();
+            let config_builder = config_builder.smartmodules(smart_module_invocations);
 
-            for invocation in smart_module_invocations {
-                println!("In cli produce command, invocation: {:#?}", invocation);
-                let raw =
-                    invocation
-                        .wasm
-                        .into_raw()
-                        .map_err(|err| ErrorCode::SmartModuleInvalid {
-                            error: err.to_string(),
-                            name: None,
-                        })?;
+            let config = config_builder
+                .delivery_semantic(self.delivery_semantic)
+                .build()
+                .map_err(FluvioError::from)?;
 
-                debug!(len = raw.len(), "SmartModule with bytes");
-
-                let initial_data = match invocation.kind {
-                    SmartModuleKind::Aggregate { ref accumulator } => {
-                        SmartModuleInitialData::with_aggregate(accumulator.clone())
-                    }
-                    SmartModuleKind::Generic(SmartModuleContextData::Aggregate {
-                        ref accumulator,
-                    }) => SmartModuleInitialData::with_aggregate(accumulator.clone()),
-                    _ => SmartModuleInitialData::default(),
-                };
-
-                debug!("param: {:#?}", invocation.params);
-                // let version = // get version from consumer cli request api_version header
-
-                sm_chain_builder.add_smart_module(
-                    SmartModuleConfig::builder()
-                        .params(invocation.params)
-                        .initial_data(initial_data)
-                        // .version()
-                        .build()
-                        .map_err(|err| ErrorCode::SmartModuleInvalid {
-                            error: err.to_string(),
-                            name: None,
-                        })?,
-                    raw,
-                );
-            }
-
-            producer = producer.with_chain(sm_chain_builder)?;
+            let producer = fluvio
+                .topic_producer_with_config(&self.topic, config)
+                .await?;
 
             let producer = Arc::new(producer);
 
