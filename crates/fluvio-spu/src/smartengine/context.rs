@@ -14,7 +14,7 @@ use futures_util::{StreamExt, stream::BoxStream};
 use fluvio_protocol::record::ConsumerRecord;
 
 use crate::core::DefaultSharedGlobalContext;
-use crate::smartengine::chain;
+use fluvio_smartengine;
 
 pub struct SmartModuleContext {
     pub chain: SmartModuleChainInstance,
@@ -61,7 +61,11 @@ impl SmartModuleContext {
         }
 
         Ok(Some(Self {
-            chain: chain::build_chain(fetched_invocations, version, ctx.smartengine_owned())?,
+            chain: fluvio_smartengine::build_chain(
+                fetched_invocations,
+                version,
+                ctx.smartengine_owned(),
+            )?,
             right_consumer_stream,
         }))
     }
