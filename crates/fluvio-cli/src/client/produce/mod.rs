@@ -27,15 +27,11 @@ mod cmd {
 
     use fluvio::{
         Compression, Fluvio, FluvioError, TopicProducer, TopicProducerConfigBuilder, RecordKey,
-        ProduceOutput, DeliverySemantic, SmartModuleInvocation,
+        ProduceOutput, DeliverySemantic, SmartModuleInvocation, SmartModuleInvocationWasm,
+        SmartModuleKind, SmartModuleContextData, Isolation
     };
 
     use fluvio_extension_common::Terminal;
-    use fluvio_spu_schema::Isolation;
-    use fluvio_spu_schema::server::smartmodule::{
-        SmartModuleContextData, SmartModuleKind,
-        /*SmartModuleInvocation,*/ SmartModuleInvocationWasm,
-    };
     use fluvio_types::print_cli_ok;
 
     #[cfg(feature = "producer-file-io")]

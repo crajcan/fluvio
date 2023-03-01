@@ -10,7 +10,7 @@ use fluvio_types::PartitionId;
 use fluvio_types::event::StickyEvent;
 
 #[cfg(feature = "smartengine")]
-use fluvio_smartengine::{chain, engine, SmartModuleChainInstance};
+use fluvio_smartengine::{SmartModuleChainInstance};
 
 mod accumulator;
 mod config;
@@ -388,9 +388,9 @@ impl TopicProducer {
     fn smart_engine_chain(
         config: Arc<TopicProducerConfig>,
     ) -> Result<Option<Arc<RwLock<SmartModuleChainInstance>>>> {
-        let sm_chain = chain::build_chain(
+        let sm_chain = fluvio_smartengine::build_chain(
             config.smartmodules.clone(),
-            engine::DEFAULT_SMARTENGINE_VERSION,
+            fluvio_smartengine::DEFAULT_SMARTENGINE_VERSION,
             SM_ENGINE.to_owned(),
         );
 
