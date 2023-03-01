@@ -5,7 +5,8 @@ cfg_if::cfg_if! {
         pub(crate) mod init;
         pub(crate) mod error;
         pub mod metrics;
-        mod engine;
+        pub mod chain;
+        pub mod engine;
         mod state;
         pub use engine::*;
         pub mod instance;

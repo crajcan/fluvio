@@ -1,5 +1,4 @@
 use std::sync::Arc;
-
 use tracing::instrument;
 use async_lock::RwLock;
 
@@ -11,9 +10,7 @@ use fluvio_types::PartitionId;
 use fluvio_types::event::StickyEvent;
 
 #[cfg(feature = "smartengine")]
-use fluvio_spu_schema::server::smartmodule::{SmartModuleKind};
-#[cfg(feature = "smartengine")]
-use tracing::debug;
+use fluvio_smartengine::{chain, engine, SmartModuleChainInstance};
 
 mod accumulator;
 mod config;
@@ -373,70 +370,36 @@ impl TopicProducer {
             metrics.clone(),
         );
 
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "smartengine")] {
-                let mut producer = Self {
-                    inner: Arc::new(InnerTopicProducer {
-                        config: config.clone(),
-                        topic,
-                        spu_pool,
-                        producer_pool,
-                        record_accumulator,
-                    }),
-                    sm_chain: Default::default(),
-                    metrics,
-                };
-
-                producer = producer.with_chain(Self::my_sm_chain_builder(config.clone())?)?;
-            } else {
-                let producer = Self {
-                    inner: Arc::new(InnerTopicProducer {
-                        config,
-                        topic,
-                        spu_pool,
-                        producer_pool,
-                        record_accumulator,
-                    }),
-                    metrics,
-                };
-            }
-        }
-
-        Ok(producer)
+        Ok(Self {
+            inner: Arc::new(InnerTopicProducer {
+                config: config.clone(),
+                topic,
+                spu_pool,
+                producer_pool,
+                record_accumulator,
+            }),
+            #[cfg(feature = "smartengine")]
+            sm_chain: Self::smart_engine_chain(config.clone())?,
+            metrics,
+        })
     }
 
     #[cfg(feature = "smartengine")]
-    fn my_sm_chain_builder(config: Arc<TopicProducerConfig>) -> Result<SmartModuleChainBuilder> {
-        let mut sm_chain_builder = SmartModuleChainBuilder::default();
+    fn smart_engine_chain(
+        config: Arc<TopicProducerConfig>,
+    ) -> Result<Option<Arc<RwLock<SmartModuleChainInstance>>>> {
+        let sm_chain = chain::build_chain(
+            config.smartmodules.clone(),
+            engine::DEFAULT_SMARTENGINE_VERSION,
+            SM_ENGINE.to_owned(),
+        );
 
-        for invocation in &config.clone().smartmodules {
-            println!("In cli produce command, invocation: {:#?}", invocation);
-            let raw = invocation.wasm.clone().into_raw()?;
-
-            debug!(len = raw.len(), "SmartModule with bytes");
-
-            let initial_data = match invocation.kind {
-                SmartModuleKind::Aggregate { ref accumulator } => {
-                    SmartModuleInitialData::with_aggregate(accumulator.clone())
-                }
-                SmartModuleKind::Generic(SmartModuleContextData::Aggregate { ref accumulator }) => {
-                    SmartModuleInitialData::with_aggregate(accumulator.clone())
-                }
-                _ => SmartModuleInitialData::default(),
-            };
-
-            debug!("param: {:#?}", invocation.params);
-
-            let smartmodule_config_builder = SmartModuleConfig::builder()
-                .params(invocation.params.clone())
-                .initial_data(initial_data)
-                // .version()
-                .build()?;
-
-            sm_chain_builder.add_smart_module(smartmodule_config_builder, raw);
+        match sm_chain {
+            Ok(c) => Ok(Some(Arc::new(RwLock::new(c)))),
+            Err(err) => Err(FluvioError::Producer(ProducerError::InvalidConfiguration(
+                format!("Failed to build smartmodule chain: {}", err),
+            ))),
         }
-
-        Ok(sm_chain_builder)
     }
 
     /// Send all the queued records in the producer batches.

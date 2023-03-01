@@ -2849,6 +2849,7 @@ dependencies = [
  "fluvio-future",
  "fluvio-protocol",
  "fluvio-smartmodule",
+ "fluvio-spu-schema",
  "fluvio-types",
  "serde",
  "serde_json",

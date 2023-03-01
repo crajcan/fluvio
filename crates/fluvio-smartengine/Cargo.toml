@@ -36,6 +36,7 @@ fluvio-protocol = { path = "../fluvio-protocol", version = "0.8.0", features = [
     "record",
 ] }
 fluvio-smartmodule = { path = "../fluvio-smartmodule", version = "0.3.0", default-features = false }
+fluvio-spu-schema = { path = "../fluvio-spu-schema" }
 
 [dev-dependencies]
 fluvio-types = { path = "../fluvio-types" }

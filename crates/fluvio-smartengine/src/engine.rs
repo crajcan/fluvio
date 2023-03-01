@@ -16,7 +16,7 @@ use crate::metrics::SmartModuleChainMetrics;
 use crate::state::WasmState;
 use crate::transforms::create_transform;
 
-const DEFAULT_SMARTENGINE_VERSION: i16 = 17;
+pub const DEFAULT_SMARTENGINE_VERSION: i16 = 17;
 
 #[derive(Clone)]
 pub struct SmartEngine(Engine);
