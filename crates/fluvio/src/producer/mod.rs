@@ -374,75 +374,69 @@ impl TopicProducer {
         );
 
         cfg_if::cfg_if! {
-                if #[cfg(feature = "smartengine")] {
-                    // stick the sm chain building here for now
-                    let mut sm_chain_builder = SmartModuleChainBuilder::default();
+            if #[cfg(feature = "smartengine")] {
+                let mut producer = Self {
+                    inner: Arc::new(InnerTopicProducer {
+                        config: config.clone(),
+                        topic,
+                        spu_pool,
+                        producer_pool,
+                        record_accumulator,
+                    }),
+                    sm_chain: Default::default(),
+                    metrics,
+                };
 
-                    for invocation in &config.clone().smartmodules {
-                        println!("In cli produce command, invocation: {:#?}", invocation);
-                        let raw = invocation
-                            .wasm.clone()
-                            .into_raw()?;
-
-                        debug!(len = raw.len(), "SmartModule with bytes");
-
-                        let initial_data = match invocation.kind {
-                            SmartModuleKind::Aggregate { ref accumulator } => {
-                                SmartModuleInitialData::with_aggregate(accumulator.clone())
-                            }
-                            SmartModuleKind::Generic(SmartModuleContextData::Aggregate { ref accumulator }) => {
-                                SmartModuleInitialData::with_aggregate(accumulator.clone())
-                            }
-                            _ => SmartModuleInitialData::default(),
-                        };
-
-                        debug!("param: {:#?}", invocation.params);
-                        // let version = // get version from consumer cli request api_version header
-
-                        let smart_module_config_builder = SmartModuleConfig::builder()
-                                .params(invocation.params.clone())
-                                .initial_data(initial_data)
-                                // .version()
-                                .build()?;
-
-                        sm_chain_builder.add_smart_module(smart_module_config_builder, raw);
-                    }
-                }
-        }
-
-        cfg_if::cfg_if! {
-                if #[cfg(feature = "smartengine")] {
-                    let mut producer = Self {
-                        inner: Arc::new(InnerTopicProducer {
-                            config,
-                            topic,
-                            spu_pool,
-                            producer_pool,
-                            record_accumulator,
-                        }),
-                        #[cfg(feature = "smartengine")]
-                        sm_chain: Default::default(),
-                        metrics,
-                    };
-
-                    producer = producer.with_chain(sm_chain_builder)?;
-                } else {
-                    let producer = Self {
-                        inner: Arc::new(InnerTopicProducer {
-                            config,
-                            topic,
-                            spu_pool,
-                            producer_pool,
-                            record_accumulator,
-                        }),
-                        #[cfg(feature = "smartengine")]
-                        sm_chain: Default::default(),
-                        metrics,
-                    };
-                }
+                producer = producer.with_chain(Self::my_sm_chain_builder(config.clone())?)?;
+            } else {
+                let producer = Self {
+                    inner: Arc::new(InnerTopicProducer {
+                        config,
+                        topic,
+                        spu_pool,
+                        producer_pool,
+                        record_accumulator,
+                    }),
+                    metrics,
+                };
+            }
         }
 
         Ok(producer)
+    }
+
+    #[cfg(feature = "smartengine")]
+    fn my_sm_chain_builder(config: Arc<TopicProducerConfig>) -> Result<SmartModuleChainBuilder> {
+        let mut sm_chain_builder = SmartModuleChainBuilder::default();
+
+        for invocation in &config.clone().smartmodules {
+            println!("In cli produce command, invocation: {:#?}", invocation);
+            let raw = invocation.wasm.clone().into_raw()?;
+
+            debug!(len = raw.len(), "SmartModule with bytes");
+
+            let initial_data = match invocation.kind {
+                SmartModuleKind::Aggregate { ref accumulator } => {
+                    SmartModuleInitialData::with_aggregate(accumulator.clone())
+                }
+                SmartModuleKind::Generic(SmartModuleContextData::Aggregate { ref accumulator }) => {
+                    SmartModuleInitialData::with_aggregate(accumulator.clone())
+                }
+                _ => SmartModuleInitialData::default(),
+            };
+
+            debug!("param: {:#?}", invocation.params);
+
+            let smartmodule_config_builder = SmartModuleConfig::builder()
+                .params(invocation.params.clone())
+                .initial_data(initial_data)
+                // .version()
+                .build()?;
+
+            sm_chain_builder.add_smart_module(smartmodule_config_builder, raw);
+        }
+
+        Ok(sm_chain_builder)
     }
 
     /// Send all the queued records in the producer batches.
