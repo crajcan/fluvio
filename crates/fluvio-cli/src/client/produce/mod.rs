@@ -135,15 +135,6 @@ mod cmd {
         )]
         pub params: Option<Vec<(String, String)>>,
 
-        /// Name of the smartmodule
-        #[clap(
-            long,
-            group("smartmodule_group"),
-            group("aggregate_group"),
-            alias = "sm"
-        )]
-        pub smartmodule: Option<String>,
-
         /// Path to the smart module
         #[clap(
             long,
@@ -202,19 +193,6 @@ mod cmd {
             Err("must be non-empty. If using '=', type it as '--key-separator \"=\"'".to_string())
         } else {
             Ok(separator.to_owned())
-        }
-    }
-
-    /// create smartmodule from predefined name
-    pub fn create_smartmodule(
-        name: &str,
-        ctx: SmartModuleContextData,
-        params: BTreeMap<String, String>,
-    ) -> SmartModuleInvocation {
-        SmartModuleInvocation {
-            wasm: SmartModuleInvocationWasm::Predefined(name.to_string()),
-            kind: SmartModuleKind::Generic(ctx),
-            params: params.into(),
         }
     }
 
@@ -294,20 +272,13 @@ mod cmd {
                 warn!("Isolation is ignored for AtMostOnce delivery semantic");
             }
 
-            // TODO: Everthing through the next comment should be passed into config_builder.smart_modules()
-            // Also move this into a method here called #collect_smartmodules or something.
+            // Move this into a method here called #collect_smartmodules or something.
             let initial_param = match &self.params {
                 None => BTreeMap::default(),
                 Some(params) => params.clone().into_iter().collect(),
             };
 
-            let smart_module_invocations = if let Some(smart_module_name) = &self.smartmodule {
-                vec![create_smartmodule(
-                    smart_module_name,
-                    self.smart_module_ctx(),
-                    initial_param,
-                )]
-            } else if let Some(path) = &self.smartmodule_path {
+            let smart_module_invocations = if let Some(path) = &self.smartmodule_path {
                 vec![create_smartmodule_from_path(
                     path,
                     self.smart_module_ctx(),
@@ -324,11 +295,11 @@ mod cmd {
                 .build()
                 .map_err(FluvioError::from)?;
 
-            let producer = fluvio
-                .topic_producer_with_config(&self.topic, config)
-                .await?;
-
-            let producer = Arc::new(producer);
+            let producer = Arc::new(
+                fluvio
+                    .topic_producer_with_config(&self.topic, config)
+                    .await?,
+            );
 
             #[cfg(feature = "stats")]
             let maybe_stats_bar = if io::stdout().is_tty() {
