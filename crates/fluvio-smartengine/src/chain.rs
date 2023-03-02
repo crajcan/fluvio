@@ -15,7 +15,6 @@ pub fn build_chain(
 ) -> Result<SmartModuleChainInstance, ErrorCode> {
     let mut chain_builder = SmartModuleChainBuilder::default();
     for invocation in invocations {
-        println!("In spu server, invocation: {:#?}", invocation);
         let raw = invocation
             .wasm
             .into_raw()

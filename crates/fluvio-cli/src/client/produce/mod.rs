@@ -40,8 +40,7 @@ mod cmd {
     use crate::client::cmd::ClientCmd;
     use crate::common::FluvioExtensionMetadata;
     use crate::monitoring::init_monitoring;
-    use crate::util::parse_isolation;
-    use crate::{CliError};
+    use crate::util::{parse_isolation, parse_key_val};
     use crate::client::smartmodule_invocation::{create_smartmodule_from_path};
 
     #[cfg(feature = "stats")]
@@ -181,13 +180,6 @@ mod cmd {
         /// at_least_once (AtLeastOnce) - send records and retry if error occurred.
         #[clap(long, default_value = "at-least-once")]
         pub delivery_semantic: DeliverySemantic,
-    }
-
-    fn parse_key_val(s: &str) -> Result<(String, String)> {
-        let pos = s.find('=').ok_or_else(|| {
-            CliError::InvalidArg(format!("invalid KEY=value: no `=` found in `{s}`"))
-        })?;
-        Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
     }
 
     fn validate_key_separator(separator: &str) -> std::result::Result<String, String> {
