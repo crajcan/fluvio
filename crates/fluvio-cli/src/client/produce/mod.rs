@@ -117,6 +117,19 @@ mod cmd {
         #[clap(long, value_parser=parse_isolation)]
         pub isolation: Option<Isolation>,
 
+        /// Path to the smart module
+        #[clap(
+            long,
+            group("smartmodule_group"),
+            group("aggregate_group"),
+            alias = "sm_path"
+        )]
+        pub smartmodule_path: Option<PathBuf>,
+
+        /// (Optional) Path to a file to use as an initial accumulator value with --aggregate
+        #[clap(long, requires = "aggregate_group", alias = "a-init")]
+        pub aggregate_initial: Option<String>,
+
         /// (Optional) Extra input parameters passed to the smartmodule module.
         /// They should be passed using key=value format
         /// Eg. fluvio consume topic-name --filter filter.wasm -e foo=bar -e key=value -e one=1
@@ -131,18 +144,14 @@ mod cmd {
         )]
         pub params: Option<Vec<(String, String)>>,
 
-        /// Path to the smart module
-        #[clap(
-            long,
-            group("smartmodule_group"),
-            group("aggregate_group"),
-            alias = "sm_path"
-        )]
-        pub smartmodule_path: Option<PathBuf>,
+        /// (Optional) Path to a file with transformation specification.
+        #[clap(long, conflicts_with = "smartmodule_group")]
+        pub transforms_file: Option<PathBuf>,
 
-        /// (Optional) Path to a file to use as an initial accumulator value with --aggregate
-        #[clap(long, requires = "aggregate_group", alias = "a-init")]
-        pub aggregate_initial: Option<String>,
+        /// (Optional) Transformation specification as JSON formatted string.
+        /// E.g. fluvio consume topic-name --transform='{"uses":"infinyon/jolt@0.1.0","with":{"spec":"[{\"operation\":\"default\",\"spec\":{\"source\":\"test\"}}]"}}'
+        #[clap(long, short, conflicts_with_all = &["smartmodule_group", "transforms_file"])]
+        pub transform: Vec<String>,
 
         /*
         #[cfg(feature = "stats")]
