@@ -4,9 +4,8 @@ mod stats;
 pub use cmd::ProduceOpt;
 
 mod cmd {
-    use std::path::Path;
     use std::sync::Arc;
-    use std::io::{BufReader, BufRead, Read};
+    use std::io::{BufReader, BufRead};
     use std::collections::BTreeMap;
     use std::fmt::Debug;
     use std::time::Duration;
@@ -19,16 +18,13 @@ mod cmd {
     #[cfg(feature = "producer-file-io")]
     use futures::future::join_all;
     use clap::Parser;
-    use tracing::{error, warn, debug};
-    use flate2;
-    use flate2::bufread::GzEncoder;
+    use tracing::{error, warn};
     use humantime::parse_duration;
     use anyhow::Result;
 
     use fluvio::{
         Compression, Fluvio, FluvioError, TopicProducer, TopicProducerConfigBuilder, RecordKey,
-        ProduceOutput, DeliverySemantic, SmartModuleInvocation, SmartModuleInvocationWasm,
-        SmartModuleKind, SmartModuleContextData, Isolation
+        ProduceOutput, DeliverySemantic, SmartModuleContextData, Isolation,
     };
 
     use fluvio_extension_common::Terminal;
@@ -46,6 +42,7 @@ mod cmd {
     use crate::monitoring::init_monitoring;
     use crate::util::parse_isolation;
     use crate::{CliError};
+    use crate::client::smartmodule_invocation::{create_smartmodule_from_path};
 
     #[cfg(feature = "stats")]
     use super::stats::*;
@@ -199,25 +196,6 @@ mod cmd {
         } else {
             Ok(separator.to_owned())
         }
-    }
-
-    /// create smartmodule from wasm file
-    fn create_smartmodule_from_path(
-        path: &Path,
-        ctx: SmartModuleContextData,
-        params: BTreeMap<String, String>,
-    ) -> Result<SmartModuleInvocation> {
-        let raw_buffer = std::fs::read(path)?;
-        debug!(len = raw_buffer.len(), "read wasm bytes");
-        let mut encoder = GzEncoder::new(raw_buffer.as_slice(), flate2::Compression::default());
-        let mut buffer = Vec::with_capacity(raw_buffer.len());
-        encoder.read_to_end(&mut buffer)?;
-
-        Ok(SmartModuleInvocation {
-            wasm: SmartModuleInvocationWasm::AdHoc(buffer),
-            kind: SmartModuleKind::Generic(ctx),
-            params: params.into(),
-        })
     }
 
     #[async_trait]

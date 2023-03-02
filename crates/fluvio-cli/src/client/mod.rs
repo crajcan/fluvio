@@ -6,6 +6,7 @@ mod partition;
 mod tableformat;
 mod smartmodule;
 mod derivedstream;
+mod smartmodule_invocation;
 
 pub use metadata::client_metadata;
 pub use cmd::FluvioCmd;
