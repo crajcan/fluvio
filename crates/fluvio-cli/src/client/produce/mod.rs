@@ -334,8 +334,10 @@ mod cmd {
 
                 let produce_output = producer.send(key, data).await?;
 
-                if self.delivery_semantic != DeliverySemantic::AtMostOnce {
-                    produce_output.wait().await?;
+                if self.delivery_semantic != DeliverySemantic::AtMostOnce
+                    && produce_output.is_some()
+                {
+                    produce_output.unwrap().wait().await?;
                 }
 
                 #[cfg(feature = "stats")]
@@ -511,7 +513,7 @@ mod cmd {
                 self.produce_key_value(producer.clone(), line, separator)
                     .await?
             } else {
-                Some(producer.send(RecordKey::NULL, line).await?)
+                producer.send(RecordKey::NULL, line).await?
             };
 
             Ok(produce_output)
@@ -539,7 +541,7 @@ mod cmd {
                 println!("[{key}] {value}");
             }
 
-            Ok(Some(producer.send(key, value).await?))
+            Ok(producer.send(key, value).await?)
         }
 
         #[cfg(feature = "producer-file-io")]

@@ -440,7 +440,7 @@ impl TopicProducer {
         skip(self, key, value),
         fields(topic = %self.inner.topic),
     )]
-    pub async fn send<K, V>(&self, key: K, value: V) -> Result<ProduceOutput, FluvioError>
+    pub async fn send<K, V>(&self, key: K, value: V) -> Result<Option<ProduceOutput>, FluvioError>
     where
         K: Into<RecordKey>,
         V: Into<RecordData>,
@@ -464,6 +464,11 @@ impl TopicProducer {
                     let mut sm_chain = smart_chain_ref.write().await;
 
                     let output = sm_chain.process(SmartModuleInput::try_from(entries)?,metrics).map_err(|e| FluvioError::Other(format!("SmartEngine - {e:?}")))?;
+
+                    if output.successes.is_empty() {
+                        return Ok(None);
+                    }
+
                     entries = output.successes;
                 }
             } else {
@@ -476,14 +481,17 @@ impl TopicProducer {
             let push_record = self.inner.clone().push_record(record).await?;
             results.add(push_record.future);
         }
-        Ok(results)
+        Ok(Some(results))
     }
 
     #[instrument(
         skip(self, records),
         fields(topic = %self.inner.topic),
     )]
-    pub async fn send_all<K, V, I>(&self, records: I) -> Result<Vec<ProduceOutput>, FluvioError>
+    pub async fn send_all<K, V, I>(
+        &self,
+        records: I,
+    ) -> Result<Vec<Option<ProduceOutput>>, FluvioError>
     where
         K: Into<RecordKey>,
         V: Into<RecordData>,
