@@ -1,0 +1,29 @@
+{
+    "device_id": 3407,
+    "device_version": "1.8.0",
+    "resident_email": "jdoe@test.com",
+    "source": "weatherbutton data collector",
+    "timestamp": "2023-04-12T15:08:54.312Z",
+    "observation_location": {
+        "city": "Houston",
+        "state": "TX",
+        "country": "US",
+        "latitude": 29.7432,
+        "longitude": -95.4011,
+        "zip": 77002,
+        "altitude": 80
+    },
+    "thermometer_reading": {
+        "temperature": 23.88,
+        "humidity": 52
+    },
+    "barometer_reading": {
+        "absolute_pressure": 0.0,
+        "temperature": 0.0,
+        "humidity": 0,
+        "computed_altitude": 0
+    },
+    "sunlight_sensor_reading": {
+        "illuminance": 9582.5
+    }
+}

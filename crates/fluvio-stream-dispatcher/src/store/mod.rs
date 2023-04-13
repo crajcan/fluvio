@@ -269,9 +269,10 @@ mod context {
 
                     select! {
                         _ = &mut timer => {
+
                             return Err(IoError::new(
                                 ErrorKind::TimedOut,
-                                format!("store timed out: {debug_action} loop: {loop_count}, timer: {} ms", timeout.as_millis()),
+                                format!("275 store timed out: {debug_action} loop: {loop_count}, timer: {} ms", timeout.as_millis()),
                             ));
                         },
 

@@ -57,6 +57,10 @@ pub async fn handle_produce_request(
 ) -> Result<ResponseMessage<ProduceResponse>, Error> {
     let (header, produce_request) = request.get_header_request();
     trace!("Handling ProduceRequest: {:#?}", produce_request);
+    println!(
+        "************ START *************\n  Handling ProduceRequest: {:#?}",
+        produce_request
+    );
 
     let mut sm_chain_instance =
         smartmodule_chain(produce_request.smartmodules, header.api_version(), &ctx).await?;
@@ -81,6 +85,8 @@ pub async fn handle_produce_request(
     .await;
     let response = into_response(topic_results);
     trace!("Returning ProduceResponse: {:#?}", &response);
+
+    println!("************* END **************");
     Ok(RequestMessage::<DefaultProduceRequest>::response_with_header(&header, response))
 }
 
@@ -104,6 +110,8 @@ async fn handle_produce_topic(
     };
 
     for mut partition_request in topic_request.partitions.into_iter() {
+        println!("    partition_request: {:#?}", partition_request);
+
         if let Some(sm_chain_instance) = &mut sm_chain_instance {
             apply_smartmodules_for_partition_request(
                 &mut partition_request,

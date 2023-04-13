@@ -67,7 +67,6 @@ setup_file() {
     cd $SM_PACKAGE_NAME
     run $SMDK_BIN build
     refute_output --partial "could not compile"
-
     # Package without existing package-meta
     run $SMDK_BIN publish --pack
     assert_success
