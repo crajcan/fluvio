@@ -1,30 +1,29 @@
 SmartModules have long provided Fluvio users a way to manipulate data in real-time. Until recently, the Stream Processing Unit ([SPU](https://www.fluvio.io/docs/architecture/spu/)) performed this transformation just after reading messages from storage, before delivering them to Consumers. Now the SPU can apply SmartModule transformations just after receiving them from Producers, before writing to disk.
 
-This post will demonstrate how the SPU can apply multiple types of SmartModules for Producers in order to save storage space, and offload latency from the consumption flow to the production flow. If you choose to follow along while reading, it is assumed you have the [Fluvio CLI](https://www.fluvio.io/cli/) installed, as well as the [SmartModule Development Kit](https://www.fluvio.io/cli/smartmodules/smdk/) and a running Fluvio cluster connected.
+This post will demonstrate how the SPU can apply multiple types of SmartModules for Producers in order to save storage space, validate data and offload latency from the consumption flow to the production flow. If you choose to follow along while reading, it is assumed you have the [Fluvio CLI](https://www.fluvio.io/cli/) installed (version 0.10.7 or higher), as well as the [SmartModule Development Kit](https://www.fluvio.io/cli/smartmodules/smdk/) and a running Fluvio cluster connected.
 
 For the purpose of this demo, let's imagine that you are the head of a team of researchers studying the incidence of sudden weather changes across your country. To collect your data, you've designed a low cost, wifi connected device complete with a thermometer, barometer, and sunlight sensor and named it 'weather-button'. You've sent weather-buttons to thousands of volunteers across the country who have connected them to power sources and wifi, so they can produce data to your Fluvio cluster. 
 
 Because you were uncertain what data would be needed when shipping the initial weather-buttons, you designed them to send all the data read from the sensors, and some identifying metadata:
 
-###### weather_event.json
 ```
 {
-    "device_id": 2067,
+    "device_id": 3407,
     "device_version": "1.8.0",
-    "resident_email": "janedoe@test.com",
-    "source": "weatherbutton data collector",
-    "timestamp": "2023-04-12T15:07:54.308Z",
+    "resident_email": "johndoe@test.com",
+    "source": "weather-button",
+    "timestamp": "2023-04-12T15:07:55.312Z",
     "observation_location": {
-        "city": "Salinas",
-        "state": "CA",
+        "city": "Houston",
+        "state": "TX",
         "country": "US",
-        "latitude": 36.6061,
-        "longitude": -121.6917,
-        "zip": 93908,
-        "altitude": 52
+        "latitude": 29.7432,
+        "longitude": -95.4011,
+        "zip": 77002,
+        "altitude": 80
     },
     "thermometer_reading": {
-        "temperature": 20.39,
+        "temperature": 23.88,
         "humidity": 52
     },
     "barometer_reading": {
@@ -34,7 +33,7 @@ Because you were uncertain what data would be needed when shipping the initial w
         "computed_altitude": 81
     },
     "sunlight_sensor_reading": {
-        "illuminance": 9572.3
+        "illuminance": 9582.5
     }
 }
 ```
@@ -48,9 +47,9 @@ fluvio produce weather-event --smartmodule weather-event-cleaner
 Now that it's time to start recording data, we'll create a SmartModule named 'weather-event-cleaner' to reduce the storage burden of each request. We can use the [smdk](https://www.fluvio.io/smartmodules/smdk/overview/) to generate a map type SmartModule:
 
 ```
-mkdir weather_research_group
-cd weather_research_group
-smdk generate \
+$ mkdir weather_research_group
+$ cd weather_research_group
+$ smdk generate \
     --no-params \
     --sm-type map \
     --project-group weather-research-group \
@@ -58,10 +57,10 @@ smdk generate \
     weather-event-cleaner
 ```
 
-This gives us a boilerplate _map_ SmartModule:
+This gives us a boilerplate _Map_ SmartModule:
 
+###### weather-event-cleaner/src/lib.rs
 ```
-// src/lib.rs
 use fluvio_smartmodule::{smartmodule, Result, Record, RecordData};
 
 #[smartmodule(map)]
@@ -78,11 +77,10 @@ pub fn map(record: &Record) -> Result<(Option<RecordData>, RecordData)> {
 
 Also included are all the configs (`Cargo.toml`, `SmartModule.toml` and `rust-toolchain.toml`) that we'll need to build the SmartModule.
 
-Now let's update the SmartModule for our use case. We'll use [serde](), which is already included in the generated Cargo.toml to model the JSON data being produced by our weather-buttons:
+Now let's update the SmartModule for our use case. We'll use [serde](https://serde.rs/), which is already included in the generated Cargo.toml, to model the JSON data being produced by our weather-buttons:
 
+###### weather-event-cleaner/src/input_weather_event.rs
 ```
-// src/input_weather_event.rs
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize, Debug)]
@@ -131,11 +129,10 @@ pub struct InputSunlightSensorReading {
 
 _*Note*: The InfinyOn certified SmartModule [Jolt](https://www.infinyon.com/blog/2022/08/fluvio-jolt-intro/) is available to allow developers to implement JSON to JSON transformations like ours using a simple DSL. 
 
-Next let's use `serde` again to describe our SmartModule's output type. This time we'll define our structure without the unwanted metadata and redundant data, and we'll reduce the nesting:
+Next let's use `serde` again to describe our SmartModule's output type. This time we'll define our structure without the unwanted metadata and redundancy, and we'll reduce the nesting:
 
+###### weather-event-cleaner/src/output_weather_event.rs
 ```
-// src/output_weather_event.rs
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
@@ -157,11 +154,10 @@ pub struct OutputObservationLocation {
 }
 ```
 
-Finally, we can implement the `From` trait to convert between our two types. This is all we need to fill in our `map()` method. It will just deserialize the input JSON, call the `from` method, and then serialize the output JSON:
+Finally, we can implement the `From` trait to convert between our two types. This is all we need to fill in our `map()` method, which will just deserialize the input JSON, call the `from` method, and then serialize the output JSON:
 
+###### weather-event-cleaner/src/lib.rs
 ```
-// src/lib.rs
-
 use fluvio_smartmodule::{smartmodule, Record, RecordData, Result};
 
 mod output_weather_event;
@@ -202,42 +198,42 @@ pub fn map(record: &Record) -> Result<(Option<RecordData>, RecordData)> {
 }
 ```
 
-Our map SmartModule is ready to build using the `smdk`:
+Now our Map SmartModule is ready to build using the `smdk`:
 
 ```
-$ cd weather_resarch_group/weather-event-cleaner
+$ cd weather-event-cleaner
 $ smdk build
 ```
 
-And add to the cluster:
+And add it to the cluster:
 
 ```
-$ cd weather_research_group/weather-event-cleaner
 $ smdk load
 ```
 
 _*Note*: You can also use the `fluvio smartmodule create` command to add smartmodules to your cluster_
 
-Now, to test will happen when our receives records from the weather-buttons, we save a sample `weather_event.json`:
+Now, to test what happens when our cluster receives records from the weather-buttons, we save a sample `weather_event.json`:
 
+###### weather_event.json
 ```
 {
-    "device_id": 2067,
+    "device_id": 3407,
     "device_version": "1.8.0",
-    "resident_email": "janedoe@test.com",
-    "source": "weatherbutton data collector",
-    "timestamp": "2023-04-12T15:07:54.308Z",
+    "resident_email": "johndoe@test.com",
+    "source": "weather-button data collector",
+    "timestamp": "2023-04-12T15:07:55.312Z",
     "observation_location": {
-        "city": "Salinas",
-        "state": "CA",
+        "city": "Houston",
+        "state": "TX",
         "country": "US",
-        "latitude": 36.6061,
-        "longitude": -121.6917,
-        "zip": 93908,
-        "altitude": 52
+        "latitude": 29.7432,
+        "longitude": -95.4011,
+        "zip": 77002,
+        "altitude": 80
     },
     "thermometer_reading": {
-        "temperature": 20.39,
+        "temperature": 23.88,
         "humidity": 52
     },
     "barometer_reading": {
@@ -247,25 +243,31 @@ Now, to test will happen when our receives records from the weather-buttons, we 
         "computed_altitude": 81
     },
     "sunlight_sensor_reading": {
-        "illuminance": 9572.3
+        "illuminance": 9582.5
     }
 }
 ```
 
-And produce it:
+And create a topic:
+
+```
+$ flvuio topic create weather-events
+```
+
+Then produce to it:
 
 ```
 // delete the new lines so the entire JSON is interpreted as one record
-tr -d '\n' < weather_event1.json | fluvio produce weather-events --smartmodule weather-event-cleaner
+$ tr -d '\n' < weather_event.json | fluvio produce weather-events --smartmodule weather-event-cleaner
 ```
 
-And view the resulting records:
+Let's review the resulting records:
 
 ```
 $ fluvio consume weather-events -B -d
 Consuming records from 'recipes' starting from the beginning of log
 {
-  "device_id": 2067,
+  "device_id": 3407,
   "timestamp": "2023-04-12T15:07:54.308Z",
   "observation_location": {
     "latitude": 29.7432,
@@ -275,7 +277,7 @@ Consuming records from 'recipes' starting from the beginning of log
   "temperature": 23.88,
   "absolute_pressure": 30.01,
   "humidity": 52,
-  "illuminance": 9572.3
+  "illuminance": 9582.5
 }
 ```
 
@@ -298,11 +300,15 @@ Suppose now that the barometers we shipped with our weather-buttons were a bit u
     // --snipped
 ```
 
-We'll have to remove events such as these or they will skew our results. Luckily, if we remove these invalid events from our data pool, we will still have the density of data needed to feed to our model. We could ask the `SPU` to perform this filtering on write (for the producer) or on read (for the consumer). To save a few more bytes on disk we'll modify our weather-event-cleaner SmartModule to filter out these records in addition to performing the JSON mapping.
+We'll have to remove events such as these or they will skew our results. Luckily, if we remove these invalid events from our data pool, we will still have the density of data needed to feed to our model. We could ask the `SPU` to perform this filtering on write (for the producer) or on read (for the consumer). Handling this filtering on write will save a few more bytes on disk, and prevent potentially dozens of Consumers from having to do the same, so we'll modify our weather-event-cleaner SmartModule to filter out these records in addition to performing the JSON mapping.
 
 To facilitate the filtering, we'll first have to trade in the `#[smartmodule(map)]` attribute for `#[smartmodule(filter_map)]`. Then we'll have to modify the return type from  `Result<(Option<RecordData>, RecordData)> ` to `Result<Option<(Option<RecordData>, RecordData)>>` so that we can return `Ok(None)` when we want to drop the record:
 
+
+###### src/lib.rs
 ```
+// --snipped 
+
 #[smartmodule(filter_map)]
 pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordData)>> {
     let key = record.key.clone();
@@ -325,17 +331,16 @@ pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordD
 Again we can build our SmartModule:
 
 ```
-$ cd weather-event-cleaner
 $ smdk build
 ```
 
-And replace our old SmartModule:
+And replace our old SmartModule on the cluster:
 
 ```
-$ smdk load --package-name weather-event-cleaner
+$ smdk load
 ```
 
-Then to test that the new SmartModule still performs the mapping but also omits our invalid events, we'll add another test file:
+To test that the new SmartModule still performs the mapping but also omits our invalid events, we'll add another test file:
 
 ###### weather_event2.json
 ```
@@ -343,8 +348,8 @@ Then to test that the new SmartModule still performs the mapping but also omits 
     "device_id": 3407,
     "device_version": "1.8.0",
     "resident_email": "johndoe@test.com",
-    "source": "weatherbutton data collector",
-    "timestamp": "2023-04-12T15:07:55.312Z",
+    "source": "weather-button data collector",
+    "timestamp": "2023-04-12T15:07:56.317Z",
     "observation_location": {
         "city": "Houston",
         "state": "TX",
@@ -355,7 +360,7 @@ Then to test that the new SmartModule still performs the mapping but also omits 
         "altitude": 80
     },
     "thermometer_reading": {
-        "temperature": 23.88,
+        "temperature": 23.92,
         "humidity": 54
     },
     "barometer_reading": {
@@ -365,7 +370,7 @@ Then to test that the new SmartModule still performs the mapping but also omits 
         "computed_altitude": 0
     },
     "sunlight_sensor_reading": {
-        "illuminance": 9582.5
+        "illuminance": 9502.6
     }
 }
 ```
@@ -373,57 +378,47 @@ Then to test that the new SmartModule still performs the mapping but also omits 
 Then produce both files with the new smartmodule.
 
 ```
-// again remove the new lines but add one to delimit
-(tr -d '\n' < weather_event.json; echo ''; tr -d '\n' < weather_event2.json) | fluvio produce weather-events --smartmodule weather-event-cleaner
+// again remove the new lines but add one to demarcate
+$ (tr -d '\n' < weather_event.json; echo ''; tr -d '\n' < weather_event2.json) | fluvio produce weather-events --smartmodule weather-event-cleaner
 ```
 
 And verify the results:
 
 ```
-$ flvd consume recipes -B -d
-Consuming records from 'recipes' starting from the beginning of log {
-  "device_id": 2067,
-  "timestamp": "2023-04-12T15:07:54.308Z",
+$ fluvio consume weather-events -B -d 
+Consuming records from 'weather-events' starting 1 from the end of log
+{
+  "device_id": 3407,
+  "timestamp": "2023-04-12T15:07:55.312Z",
   "observation_location": {
-    "latitude": 36.6061,
-    "longitude": -121.6917,
-    "altitude": 52
+    "latitude": 29.7432,
+    "longitude": -95.4011,
+    "altitude": 80
   },
-  "temperature": 20.39,
+  "temperature": 23.88,
   "absolute_pressure": 30.01,
   "humidity": 52,
-  "illuminance": 9572.3
+  "illuminance": 9582.5
+}
+{
+  "device_id": 3407,
+  "timestamp": "2023-04-12T15:07:55.312Z",
+  "observation_location": {
+    "latitude": 29.7432,
+    "longitude": -95.4011,
+    "altitude": 80
+  },
+  "temperature": 23.88,
+  "absolute_pressure": 30.01,
+  "humidity": 52,
+  "illuminance": 9582.5
 }
 ```
 
-Now that the SPU is applying our new `filter-map` SmartModule for the producers, we're saving more disk space while also maintaining the integrity of our results and avoiding any added latency on read.
+Here we can see the invalid weather event was filtered out, while the valid event was again mapped and committed.
 
-## One Final Upgrade: Data Aggregation
+Now that the SPU is applying our new `filter-map` SmartModule for the producers, we're maintaining the integrity of our results and avoiding any added latency on read.
 
-A few months have passed and a surprising amount of volunteers have installed weather-buttons at their homes across the country. Your chief data scientest comes to you and says they've run an audit and determined that your data is more dense than needed but your data storage crisis is back. 
+## Conclusion
 
-Since the oldest data is discarded first, if a few more weather-buttons are installed your data team will not have enough historical context for some of their models.
-
-You decide together that you need to thin out your weather events, so you will aggregate each batch of weather events down to a single record that holds the averages of each value.
-
-To make these changes to our SmartModule, we'll again have to update the `#[smartmodule(<sm_type>)]` attribute and the method signature:
-
-```
-#[smartmodule(filter_map)]
-pub fn filter_map(record: &Record) -> Result<Option<(Option<RecordData>, RecordData)>> {
-    let key = record.key.clone();
-
-    let input_event: InputWeatherEvent =
-        serde_json::from_slice(record.value.as_ref())?;
-
-    // filter out the invalid data
-    if input_event.barometer_reading.absolute_pressure == 0.0 {
-        return Ok(None);
-    }
-
-    let output_event = OutputWeatherEvent::from(input_event);
-    let value = serde_json::to_vec_pretty(&output_event)?;
-
-    Ok(Some((key, value.into()))) // remember to adjust the return value for new signature
-}
-```
+We've see how applying Map and FilterMap type SmartModules while producing data rather than while consuming can help us save storage, validate our data, and offload latency from Consumer processes. Be sure to brainstorm whether applying these or any other [types of SmartModules](https://www.fluvio.io/smartmodules/#data-streaming-apis-available-in-smartmodules) while producing can be helpful to your Fluvio use case.
