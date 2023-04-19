@@ -265,7 +265,7 @@ Let's review the resulting records:
 
 ```
 $ fluvio consume weather-events -B -d
-Consuming records from 'recipes' starting from the beginning of log
+Consuming records from 'weather-events' starting from the beginning of log
 {
   "device_id": 3407,
   "timestamp": "2023-04-12T15:07:54.308Z",
