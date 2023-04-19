@@ -44,7 +44,7 @@ The useless and redundant data in the payloads could present a problem for you. 
 fluvio produce weather-event --smartmodule weather-event-cleaner
 ```
 
-Now that it's time to start recording data, we'll create a SmartModule named 'weather-event-cleaner' to reduce the storage burden of each request. We can use the [smdk](https://www.fluvio.io/smartmodules/smdk/overview/) to generate a map type SmartModule:
+Now that it's time to start recording data, we'll create a SmartModule named 'weather-event-cleaner' to reduce the storage burden of each request. We can use the [smdk](https://www.fluvio.io/smartmodules/smdk/overview/) to generate a Map type SmartModule:
 
 ```
 $ mkdir weather_research_group
@@ -417,7 +417,7 @@ Consuming records from 'weather-events' starting 1 from the end of log
 
 Here we can see the invalid weather event was filtered out, while the valid event was again mapped and committed.
 
-Now that the SPU is applying our new `filter-map` SmartModule for the producers, we're maintaining the integrity of our results and avoiding any added latency on read.
+Now that the SPU is applying our new FilterMap SmartModule for the producers, we're maintaining the integrity of our results and avoiding any added latency on read.
 
 ## Conclusion
 
